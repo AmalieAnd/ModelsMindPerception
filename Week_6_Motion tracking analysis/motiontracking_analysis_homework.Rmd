@@ -119,7 +119,8 @@ ggplot(single, aes(x=time, y=velocity)) +
 
 
 
-#9. Using zero crossings in the acceleration, calculate velocity extreme values (maxima and minima). Mark those extreme values on top of the x/y plot you made earlier.
+#9. Using zero crossings in the acceleration (EDIT: 0-CROSSINGS IN VELOCITY), calculate velocity extreme values (maxima and minima). Mark those extreme values on top of the x/y plot you made earlier.
+A messy acceleration curve --> one point at the most extreme value wouldn't be that informative
 ```{r}
 
 
