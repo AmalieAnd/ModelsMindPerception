@@ -1,0 +1,136 @@
+---
+title: "Motion tracking analysis"
+author: "Amalie Lysgaard Andersen"
+date: "4/4/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+setwd("~/Library/Mobile Documents/com~apple~CloudDocs/4. Aarhus Universitet/4. Semester/3. Models for perception and action/Tasks_ModelsMindPerception")
+
+pacman::p_load(readr, tidyverse, reshape, ggplot2)
+```
+
+### Motion tracking and analysis (contd.) ###
+In your study group, try to do the following analysis steps with a single trial of the hand priming data in R. Upload your commented code to Blackboard (or share it with me in some other way). If you get stuck anywhere make a comment about it – just see how far you get! We’ll discuss it together during the next class.
+Deadline for submission: Tuesday, April 9th.
+
+Note: Use the data 21, not any of the others I had previously uploaded. The data folder contains all 20 trials of that one participant. The data are already filtered.
+
+Matlab treats the top as 0.0, which means that the data is then inverted (U shapes instead of n shapes) --> cordula already did this
+
+```{r data}
+#loading
+data <- list.files(pattern = "*.txt") %>% 
+  lapply(read.delim, stringsAsFactors=F, sep=",", header=F) %>% 
+   bind_rows 
+
+#renaming
+data <- rename(data, c(V1 = "sample", V2 = "condition", V3 = "pos_x", V4 = "pos_y"))
+
+single_15 <- list.files(pattern = "21_15.txt") %>% 
+  lapply(read.delim, stringsAsFactors=F, sep=",", header=F)
+```
+
+
+#1. Remind yourselves what we did in the study and what we expected and why.
+Mouse tracking: opstacle course. Is there a pattern in how high we go in the obstacles when changing the height pattern?
+
+- Mouse-tracking: like a histogram, taking a course without touching the pillars
+- Intention with experiment: 
+	• Gauge the repetition effect
+	• If deviation from the pattern (difference in height) --> longer RT
+	• Remapping effect
+	• If many tall pillars, and one low in the middle --> you would probably go a lot higher on the low one as you're used to the taller ones
+	  	○ Cordula found this effect!
+	  	○ Repetition --> it's cost-effective to just keep the previous pattern
+	• If many low pillers, and one tall one in the middle --> you overestimate the sufficient movement
+	  	○ The tall pillar is an obstacle 
+
+The data is more mixed in this effect though
+
+# 2. Load one trial of your choice into R. The four columns refer to: sample, condition, x and y.
+```{r}
+single <- read.delim("21_15.txt", sep = ",", header =F)
+
+single <- rename(single, c(V1 = "sample", V2 = "condition", V3 = "pos_x", V4 = "pos_y"))
+```
+
+
+# 3. Plot x against y.
+```{r}
+ggplot(single, aes(x=pos_x, y=pos_y)) +
+  geom_point(size = 0.2,color = rainbow(2268))
+```
+
+
+4. Map the y data to a more intuitive screen output with 0/0 in the lower left corner and where
+upwards movements are increasingly positive (i.e. so that it looks like the movements we made
+on the screen).
+```{r}
+single$pos_y_scale <- single$pos_y - min(single$pos_y)
+single$pos_x_scale <- single$pos_x - min(single$pos_x)
+
+
+ggplot(single, aes(x=pos_x_scale, y=pos_y_scale)) +
+  geom_point(size = 0.2,color = rainbow(2268))
+```
+
+#5. Calculate the distance travelled (for x and y combined).
+calculate euclidian distance....
+(note: there's two dimensions to take into account here --> it's not just one linear line)
+```{r}
+correct_manualdist <- sum(sqrt(diff(single$pos_x_scale)^2 + diff(single$pos_y_scale)^2))
+correct_manualdist
+
+# 5523.131 pixels: the distance from start to end of trial --> this is the actual distance the mouse is travelling
+```
+
+
+#6. Add a time vector. I forgot to measure time so I had to estimate it post-hoc (fine for this exercise, not great if it was a real experiment). We can assume that each sample takes .0025 s.
+```{r}
+single$time <- (single$sample - 1) * 0.0025 
+```
+
+
+#7. Calculate velocity and acceleration for y, i.e. vertical movement. Remember: Velocity = distance difference / time difference. Acceleration = velocity difference / time difference.
+```{r}
+single$dist_diff <- single$pos_y - lag(single$pos_y, n = 1)
+single$velocity <- (single$pos_y - lag(single$pos_y, n = 1)) / 0.0025
+
+single$velo_diff <- single$velocity - lag(single$velocity, n = 1)
+single$acceleration <- (single$velocity - lag(single$velocity, n = 1))/0.0025
+```
+
+
+#8. Play around with some filter to smoothen velocity and acceleration (most common: Butterworth filter).
+```{r}
+# first plotting
+
+# acceleration
+ggplot(single, aes(x=time, y=acceleration)) +
+  geom_point(size = 0.2,color = rainbow(2268))
+
+# velocity
+ggplot(single, aes(x=time, y=velocity)) +
+  geom_point(size = 0.2,color = rainbow(2268))
+
+```
+
+
+
+#9. Using zero crossings in the acceleration, calculate velocity extreme values (maxima and minima). Mark those extreme values on top of the x/y plot you made earlier.
+```{r}
+
+
+
+```
+
+
+#10. Using e.g. a range of x positions, specify a segment during which the critical movement happens, i.e. the 6th movement is what we would want to compare in this study. Mark the peak in that segment in a different color.                                               
+```{r}
+
+```
+
+
+#Bonus: If you want, analyse and plot all 20 trials separately for each condition.
