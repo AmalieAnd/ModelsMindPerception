@@ -1,0 +1,76 @@
+---
+title: "Models_Mouse_tracking"
+author: "Amalie Lysgaard Andersen"
+date: "21/3/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(pacman)
+p_load(tidyverse, mousetrack, mousetrap, ggplot2)
+
+setwd("~/Library/Mobile Documents/com~apple~CloudDocs/4. Aarhus Universitet/4. Semester/3. Models for perception and action/Tasks_ModelsMindPerception")
+```
+
+```{r data}
+load("MT_Pilot20190314.R")
+load("MTrap_Pilot20190314.R")
+
+# filtering trials
+df_sin <- filter(df, df$TestTrial == 0)
+```
+
+### Visualization
+1. Plot single trajectories (Everybody should do at least this)
+```{r}
+single <- filter(df, df$ID == 105955, df$Trial == 1)
+
+ggplot(single, aes (x = Pos_x, y = Pos_y)) +
+  geom_smooth(aes(x = Pos_x, y = Pos_y), color ="#5098A6", se =F) +
+  xlim(-300,300) +
+  geom_vline(xintercept = 0, linetype = 2, alpha =0.5) 
+
+```
+
+2. Plot several trajectories on top of each other 3. Plot aggregated trajectories
+```{r}
+multiple <- filter(df, df$Trial == 5, df$Volatility == "L", df$GainLoss == "Gain")
+
+ggplot(multiple, aes (x = Pos_x, y = Pos_y)) +
+  geom_smooth(aes(x = Pos_x, y = Pos_y, group=ID, colour = ID), se = F) +
+  xlim(-300,300) +
+  geom_vline(xintercept = 0, linetype = 2) 
+  #facet_wrap(~ID)
+
+```
+
+
+3. Measuring trajectory (NOTE THIS IS NOT THE RIGHT PROCEDURE!)
+```{r}
+henning <- filter(df, df$ID == 105955, df$Trial == 1, df$GainLoss == "Gain")
+
+a <- sum(abs(diff(henning$Pos_x)))
+b <- sum(abs(diff(henning$Pos_y)))
+c <- (a^2 + b^2)
+sqrt(c)
+
+
+### RIFHT CODE
+correct_manualdist <- sum(sqrt(diff(df$Pos_x)^2 + diff(df$Pos_y)^2))
+correct_manualdist
+
+```
+
+
+```{r } 
+mt_derivatives(df) 
+mt_measures() 
+mt_plot()
+mt_heatmap()
+```
+
+```{r}
+load("InstructorClass_190328.R")
+```
+
+
