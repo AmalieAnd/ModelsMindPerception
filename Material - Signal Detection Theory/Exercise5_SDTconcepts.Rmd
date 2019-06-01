@@ -1,0 +1,160 @@
+---
+title: "Untitled"
+author: "josh"
+date: "Sunday, March 12, 2017"
+output: html_document
+---
+
+The purpose of this class is to introduce you to the conceptual framework of signal detection theory (SDT). For this class we'll be using some data from the experiment reported in Skewes & Gebauer, 2016. In this paper we report standard SDT parameters, as well as an analysis of the same data from the perspective of utility theory (Signal Utility Estimator model). We won't cover much utility theory here (even though that is the interesting finding in the paper). We will only be interested in the sensitivity (d') and bias (criterion) parameters. 
+
+Today, we'll analyse the data using the formulas from the MacMillan and Creelman readings. This is the classical or statistical approach to SDT. Next week, we will implement the same theory in a Bayesian Cognitive Modeling framework. This is the latent variable approach to SDT, and the basic logic will be the same as what we did for the psychometric (i.e. logistic) function. We will just replace the graphical model (i.e. the equations) for the psychometric function, with the graphical model (i.e. the equations) for SDT.  
+
+But that's all next week. The purpose of today is to get an understanding of what these equations represent, and the way in which they encode an explicit theory about how sensation and decision making work together in a model of perception. So we'll start conceptually, and then move on to the statistical analysis, which will allow us to calculate d' and response criterion parameters. What matters most is that you understand the formulas in the context of the SDT decision model. 
+
+Before we start, a brief recap of the design of the experiment, in the context of SDT terminology. The task was an auditory localisation task. Particpants were asked to guess the species of cricket producing a chirp sound, based on auditory location alone, with one species distributed more to the left, and the other distributed more to the right, with overlapping territories. We varied the size of the territories, and the number of crickets in each territory, in a two by two factorial design. So, in more intuitive terms, there were four conditions:
+
+1) LARGER, more highly overlapping territories, with lots of crickets on the LEFT
+2) LARGER, more highly overlapping territories, with lots of crickets on the RIGHT
+3) SMALLER, more highly overlapping territories, with lots of crickets on the LEFT
+4) SMALLER, more highly overlapping territories, with lots of crickets on the RIGHT
+
+Keep this more intuitive description in mind, and refer back as you need. 
+
+Stated less intuitively, but in a way that is more useful for applying SDT, we can also describe the design of the experiment as follows. 
+
+In SDT, we start by defining what we mean by "signal". When we use the term "signal", we are referring to an a priori categorisation of the cause of a sensory input. Returning the cancer screening example from the lecture, a "signal" occurs when a shadow on an MRI is caused by something that is properly categorised as a tumor. "Noise" occurs when the shadow is caused by a cyst. 
+
+Let us apply this terminology to the experiment by saying that a "signal" occurs when the chirp is caused by a cricket from the species dstributed more towards the right hemified, and a "noise" trial occurs when the chirp is caused by a cricket from the species distributed more towards the left. Unlike the cancer example, the assignment of the category "more to the right" as "signal" is arbitrary. This is fine. If - again unlike the cancer example - there is no conceptual reason to assign one category as "signal" and the other as "noise", SDT works just fine if you swap the assignment. All that matters is that the categories are exhaustive and that your assigment is consistent.  
+
+So, now we can say: the experiment was an auditory localisation experiment requiring participants to correctly categorise tones as "signal" or "noise" based on an auditory location cue. Signal tones were sampled from a Guassian distribution of locations with a mean to the right of the auditory midline, and noise tones were sampled from a distribution of locations to the left of the auditory midline. We varied 1) the standard deviation of the distributions from which the tones were sampled (i.e. the size of the crickets' territories) and 2) the base rate of signal trials (i.e. how many crickets were presented) in a 2 x 2 block design. 
+
+Thus the four conditions described above can be (less intuitively but more generally) described as: 
+
+1) High standard deviation, low signal base-rate
+2) High standard deviation, high signal base-rate
+3) Low standard deviation, low signal base-rate
+4) Low standard deviation, high signal base-rate
+
+IN OUR ANALYSIS, WE'LL TREAT EACH CONDITION SEPERATELY, AND CALCULATE SDT PARAMETERS FOR EACH, THEN COMPARE FACTORIALLY
+
+Before getting started on the code, I'll just tidy the logfile a little so that everything is labelled more intuitively. 
+
+
+```{r}
+#loading a datafile from a subject in Skewes & Gebauer, 2016
+setwd("~/Library/Mobile Documents/com~apple~CloudDocs/4. Aarhus Universitet/4. Semester/3. Models for perception and action/2. Perceptual decision-making /Material - Signal Detection Theory") #change this so it points to your data
+logfile_name = "data.txt" 
+logfile = read.table(logfile_name,header=TRUE) #not a csv file
+
+#recoding some variables in the dataframe to make the design more transparent
+logfile$stimSD
+logfile$stimSD[logfile$SNR.BaseRate==1 | logfile$SNR.BaseRate==3]="low"
+logfile$stimSD[logfile$SNR.BaseRate==2 | logfile$SNR.BaseRate==4]="high"
+
+logfile$stimBR
+logfile$stimBR[logfile$SNR.BaseRate==1 | logfile$SNR.BaseRate==2]="low"
+logfile$stimBR[logfile$SNR.BaseRate==3 | logfile$SNR.BaseRate==4]="high"
+
+# recoding noise as 0 and signal as 1 because this is more intuitive
+logfile$signal = as.factor((logfile$signal-2)*-1)
+logfile$response = (logfile$response-2)*-1
+
+# removing training trials - because the task involves learning and we designed the experiment to look only at SDT parameters after learning
+logfile = logfile[logfile$trainOrTest==1,]
+
+```
+
+Now we have a logfile data frame that we can start exploring, and applying SDT analyses to. The important variables for this purpose are:
+
+logfile$signal
+  True species of cricket/true location category. 1 = rightwards = signal. 0 = leftwards = noise.
+
+logfile$response
+  Participants categorisation. 1 = rightwards = signal. 0 = leftwards = noise.
+
+logfile$stimSD
+  Standard deviation of the distributions from which sound locations were sampled to make the signal and noise categories (i.e. territory size)
+
+logfile$stimBR
+  Relative number of cricket species/signal trials in a block
+
+logfile$pan
+  The real auditory location of the sound played on each trial. -1 = extreme left, 0 = auditory midline, +1 = extreme right. Everything else in between.
+
+
+```{r, echo=FALSE}
+#---------------- Exercise 1 - Exploring the stimulus and probing intuitions -----------------------
+
+#Okay, let's start by visualising the stimulus distributions in each of the four conditions. This is a very logical place to start, since signal detection theory is defined by it's assumption that "signal" and "noise" categories are represented in the mind as overlapping probability distributions that reflect the stimulus from the world. We'll say more about this in a bit. 
+
+# To get you started, here are the histograms of the stimulus distributions in each condition, as well as the density plots for each condition. Have a look at both types of plot.
+
+#histograms
+library(ggplot2)
+ggplot(logfile, aes(pan, fill = signal)) + 
+  geom_histogram(alpha = 0.5,position = 'identity',binwidth=.1) +
+  facet_wrap(~stimSD + stimBR)
+
+#density plots
+ggplot(logfile, aes(pan, fill = signal)) + 
+  geom_density(alpha = 0.5,position = 'identity') +
+  facet_wrap(~stimSD + stimBR)
+
+#Questions
+
+# i) Speaking generally, what is the difference between the two kinds of plot? In as general terms as possible (i.e. not in the context of the experiment or of SDT), what does a histogram represent, and what does a kernal density plot represent?
+## histo = count in categories
+## dens  = Count in continuous  
+
+# ii) From the plotting code, and from the description of the experiment above, explain the plots in terms of the experimental stimulus. What do the axes represent in the two kinds of plot? What does each panel represent? What do the curves/bars within each panel represent? 
+
+# iii) How are the manipulations described above in the overview of the experiment, made evident in the plots? Describe the features of the plots that best represents the 2 experimental manipulations explained above. 
+
+# iv) Based only on visual interpretation of the DENSITY plots, which conditions do you think would be more difficult? In other words, which conditions would you expect particpants to make more categorisation errors in? Why?
+
+# v) Based only on visual interpretation of the DENSITY plots, and focusing only on the bottom two panels: where on the x-axis would be the most reasonable place to put the decision boundary between the two categories? Asked another way, where is the point on the x-axis where, if you always categorised everything to the right as "signal", and everything to the left as "noise", you would make as few errors as possible (you would always make some errors in this task)?
+
+#vi) Now, based only on visual interpretation of the bottom two figures of the HISTOGRAMS: is the most reasonable decision boundary the same as for question v)? Is the most reasonable decision boundary the same for the two conditions represented in the bottom two panels of the HISTOGRAMS?
+
+#vii) In the SDT terms you learned in the McMillan and Creelman reading, which conditions would you expect a lower d' for? Why?
+
+#viii) In SDT terms, which conditions would you expect a negative response bias for? Why? Which conditions would you expect a positive response bias for? Why?
+
+```
+
+#----------- Exercise 2 - SDT as a cognitive model -----------------------------------------
+
+Exercise 1 is focused only on the stimulus. The distributions we've just plotted and discussed describe the statistical properties of the sensory ENVIRONMENT.  Another way of putting this is to say that these figures describe the statistics of the categories into which the sensory world should ideally be organised, independently of how people represent that information, and independently of how people behave.
+
+Put very simply, the core assumption of SDT is that perceptual categorisation approximates this ideal. More fully, SDT assumes that the mind contains statistical representations of the sensory environment which APPROXIMATE the distributions we discussed in the previous exercise, and which people use to categorise the world. In other words, just like our stimulus consists of overlapping signal (i.e. crickets living in a territory towards the right) and noise (i.e. crickets living in a territory towards the left) distributions, so does the mind consist of signal and noise distributions, which are structured in the same way as the stimulus (with different parameters), and which we use when categorising sensory properties in our perceptual world. 
+
+Now - and this is important - if people were IDEAL OBSERVERS, then the distributions describing the stimulus, and the distributions describing the REPRESENTATIONS inside people's minds, would be identical - they would have identical parameters. But they are not. The stimulus needs to be transduced into neural signals, people learn the statistics of the environment imperfectly, and top-down processes interfere with perceptual categorisations. Thus, people add REPRESENTATIONAL NOISE to the stimulus, and so never categorise optimally (i.e due to neural noise, sub-optimal learning, and attention and prior knowledge and expectatons, etc). But the key to understanding SDT lies in understanding that all of the concepts we discussed in the above exercise when describing the stimulus are applied to inferences we make about how people organise their sensations into perceptual categories; in statistical REPRESENTATIONS stored in the mind. 
+
+With all of this in mind, and drawing on the readings, answer the following questions:
+
+i) Cognitively - i.e. in terms of the statistical representations used to categorise sensory inputs - what does the sensitivity index d' mean? How does this meaning relate to the stimulus distributions discussed in the previous exercise?
+
+ii) Again cognitively, what does the bias measure c mean?
+
+iv) In cognitive terms, should we expect the base rate of the stimuli within an experimental block to influence d'? Why or why not?
+
+v) Should we expect the base rate of the stimuli to influence c? Why or why not?
+
+```{r, echo=FALSE}
+#-------------------- Exercise 3 - estimating SDT parameters ----------------
+
+# d' is an index of sensitivity. In terms of the SDT model, d' represents the extent to which the signal and the noise distributions can be seperated from one another. When applied to the distributions we have in our minds - our REPRESENTATIONS - d' is an index of an individual's sensitivity in resolving the signal and noise distributions (i.e. right and left crickets, or tumors and cysts, etc) from one another. When applied to the STIMULI, d' represents an upper bound, or how well we could seperate the signal and noise distributions, if we represented them perfectly in our minds. Applied to the stimuli, d' represents the sensitivity of an IDEAL OBSERVER. Let's call this optimal d'. 
+
+# Let's start by calculating optimal d' for the four conditions. The logic here should be very familiar to you - although you might not realise. What we want to do is find out how different two distributions are from one another. This is exactly what we want to do when we do a straightforward t-test. And just like the t-test, the formula for calculating optimal d' is just the difference between the means for the two distributions, divided by their standard deviation. 
+
+# i) Calculate optimal d' for each of the four conditions. Use these formal results to explain your answer to Exercise 2iii).
+
+# ii) As we saw in the readings and the lecture, the difference between the two distributions can also be estimated using the z-score of the measured hit-rate and the false-alarm rate. In R you use the function qnorm to compute a z-score transformation (see http://seankross.com/notes/dpqr/ for discussion). Calculate d' for the four conditions. 
+
+# (HINT remember when calculating the hit and false alarm rates, that you need to calculate the number of hits and false alarms as a proportion of the number of SIGNAL trials. Remember also that the number of signal trials differs by condition - because we vary the SIGNAL BASE RATE. To help you out, in the blocks where the base rate is high, there are 150 signal trials, and in the blocks where it is low, there are 50 signal trials)
+
+# iii) Are any of the conditions closer to optimal than the others?  Reflect on the relationships between the estimated d' and optimal for each condition, in light of your answer to exercise 2iv)
+
+# iv) Similarly, we can estimate the response bias parameter c from the measured hit rate and false alarm rate. Calculate c for each condition. Reflecting on your answers to exercises 1viii) and 2v) above, is this the result you would expect?
+
+```
